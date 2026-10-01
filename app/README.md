@@ -1,8 +1,7 @@
 # Red wine quality app
 
-The Streamlit app displays four regressors trained in `src/red_wine_quality_app/model.ipynb`:
-CatBoost, XGBoost, LightGBM, and Random Forest. The app loads their exported
-bundle; it does not train models on startup. No React build or API server is needed.
+This Streamlit app loads three regressors trained in `src/red_wine_quality_app/model.ipynb`:
+Random Forest, XGBoost, and LightGBM. It does not train models on startup.
 
 From the `app` directory:
 
@@ -11,17 +10,18 @@ uv sync --locked
 uv run streamlit run app.py
 ```
 
-To update the models, run the training cells in `model.ipynb`, then run its final
-export cell. Commit the resulting `src/red_wine_quality_app/artifacts/model_bundle.joblib`
-alongside code and `uv.lock`. The notebook's target is `log1p(quality)`; the export
-cell converts held out predictions back to the original quality scale before
-calculating displayed metrics. Predictions are rounded and limited to quality
-scores 3–8. Mean absolute error is in quality points and exact-score error is the
-percentage of held out wines assigned the wrong integer score. These are model
-evaluation metrics, not an observed error for an individual wine. The prediction
-tab also shows the unrounded quality estimate, which can change even when two
-inputs round to the same score. Held out metrics change only when the selected
-model changes.
+To update the models, run the notebook's training cells, then its final export cell.
+The resulting `src/red_wine_quality_app/artifacts/model_bundle.joblib` supplies the
+models, held-out evaluation data, and data for the exploratory feature plot. The
+notebook's target is `log1p(quality)`; the export converts predictions back to
+quality points. Exact-score accuracy, weighted F1, and the classification report
+use predictions rounded and clipped to scores 3–8. MAE and residuals use
+unrounded predictions on the original quality scale. The three models share the
+same held-out split.
+
+The prediction tab shows both the rounded score and the unrounded estimate.
+Held-out error metrics describe the selected model's test set; they do not
+measure the error of a wine whose true quality is unknown.
 
 To run the tests:
 
@@ -29,7 +29,6 @@ To run the tests:
 uv run python -m unittest discover -s tests -v
 ```
 
-`src/red_wine_quality_app/model.py` defines the app's loading and prediction
-interface. If you change the notebook's feature schema or target transformation,
-update that interface and rerun the export cell. Load the bundle only from this
-project: joblib artifacts are pickle based and should not be loaded from untrusted sources.
+`src/red_wine_quality_app/model.py` loads the notebook export and serves
+predictions; `charts.py` builds the Plotly figures. Only load this project's
+bundle: joblib artifacts are pickle based and should not come from untrusted sources.
