@@ -108,7 +108,7 @@ except (FileNotFoundError, ValueError) as exc:
 
 st.title("Red Wine Quality")
 st.caption("Explore model performance and predict a red wine's quality score.")
-selected_model = st.sidebar.selectbox("Model", MODEL_NAMES)
+selected_model = st.selectbox("Model", MODEL_NAMES)
 model = models[selected_model]
 evaluation_tab, visualizations_tab, predictions_tab = st.tabs(
     ["Model Evaluation", "Visualizations", "Predictions"]

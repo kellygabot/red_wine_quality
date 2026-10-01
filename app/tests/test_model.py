@@ -89,7 +89,7 @@ class StreamlitAppTests(unittest.TestCase):
             ["Model Evaluation", "Visualizations", "Predictions"],
         )
         self.assertEqual(len(app.slider), 11)
-        self.assertEqual(app.sidebar.selectbox[0].options, ["Random Forest", "XGBoost", "LightGBM"])
+        self.assertEqual(app.selectbox[0].options, ["Random Forest", "XGBoost", "LightGBM"])
         self.assertEqual(len(app.get("plotly_chart")), 5)
         self.assertEqual(len(app.dataframe), 2)
         self.assertEqual(app.dataframe[0].value["Quality score"].tolist(), [3, 4, 5, 6, 7, 8])
@@ -114,7 +114,7 @@ class StreamlitAppTests(unittest.TestCase):
         self.assertIn("Weighted F1-Score", metric_labels)
         self.assertIn("Held out mean absolute error", metric_labels)
         self.assertIn("Held out exact-score error", metric_labels)
-        app.sidebar.selectbox[0].select("XGBoost").run()
+        app.selectbox[0].select("XGBoost").run()
         self.assertFalse(app.exception)
         self.assertFalse(app.success)
         benchmark = app.dataframe[1].value
