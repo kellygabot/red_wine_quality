@@ -1,2 +1,0 @@
-recursive-include redwine_model/frontend/build *
-include pyproject.toml

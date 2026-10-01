@@ -2,6 +2,9 @@
 redwine_model.egg-info
 __pycache__
 __init__.py
+!app/src/red_wine_quality_app/__init__.py
 node_modules
 uv.lock
+!app/uv.lock
+catboost_info/
 .vscode

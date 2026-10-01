@@ -1,22 +1,26 @@
 [project]
-name = "model"
+name = "red-wine-quality-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local Streamlit showcase for a red wine quality model"
 readme = "README.md"
 authors = [
     { name = "kellygabot", email = "kellygabot3232006@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi[standard]>=0.141.1",
+    "catboost>=1.2.10",
+    "flaml>=2.7.0",
+    "ipykernel>=7.4.0",
+    "joblib>=1.6.0",
+    "lightgbm>=4.7.0",
     "matplotlib>=3.11.2",
     "numpy>=2.5.3",
     "pandas>=3.0.6",
     "scikit-learn>=1.9.1",
+    "seaborn>=0.13.2",
+    "streamlit>=1.64.0",
+    "xgboost>=3.4.1",
 ]
-
-[project.scripts]
-model = "model:main"
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]
