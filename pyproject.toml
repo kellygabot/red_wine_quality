@@ -9,8 +9,6 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "ipykernel>=7.4.0",
-    "joblib>=1.6.0",
-    "lightgbm>=4.7.0",
     "matplotlib>=3.11.2",
     "numpy>=2.5.3",
     "pandas>=3.0.6",
@@ -21,6 +19,3 @@ dependencies = [
     "xgboost>=3.4.1",
 ]
 
-[build-system]
-requires = ["uv_build>=0.12.1,<0.13.0"]
-build-backend = "uv_build"

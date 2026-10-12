@@ -1,121 +1,115 @@
-"""Run with `uv run streamlit run app.py` from the app directory."""
+"""Run from the repository root: uv run streamlit run app/app.py."""
 
+from decimal import Decimal
+from math import expm1
+from pathlib import Path
+import sys
+
+import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
-from red_wine_quality_app.charts import (
-    confusion_heatmap,
-    feature_importance,
-    feature_quality_box,
-    residual_distribution,
-    score_distribution,
-)
-from red_wine_quality_app.model import ARTIFACT_PATH, MODEL_NAMES, ModelBundle, load_models, predict_wine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-st.set_page_config(page_title="Red Wine Quality", page_icon="🍷", layout="wide")
+from app.data import FEATURE_NAMES, load_original_data, load_training_data
+from app.evaluation import evaluate_models
+from models.random_forest import train_random_forest
+from models.support_vector_regression import train_support_vector_regression
+from models.xgboost import train_xgboost
 
-
-@st.cache_resource(show_spinner="Loading the wine quality models…")
-def get_models(export_timestamp: int) -> dict[str, ModelBundle]:
-    return load_models()
+STEPS = (0.1, 0.01, 0.01, 0.1, 0.001, 1.0, 1.0, 0.00001, 0.01, 0.01, 0.1)
 
 
-def render_model_evaluation(
-    model: ModelBundle, models: dict[str, ModelBundle], selected_model: str
-) -> None:
-    metrics = model.metrics
-    st.subheader("Model evaluation")
-    st.caption(f"{model.train_size:,} training wines · {model.test_size:,} held-out wines · scores 3–8")
-    for column, (label, value) in zip(st.columns(4), (
-        ("Exact-Score Accuracy", f"{metrics.accuracy:.1%}"),
-        ("Within ±1 Point Accuracy", f"{metrics.within_one_accuracy:.1%}"),
-        ("Mean Absolute Error (MAE)", f"{metrics.mean_absolute_error:.2f} points"),
-        ("Weighted F1-Score", f"{metrics.weighted_f1:.3f}"),
-    )):
-        column.metric(label, value)
-
-    st.plotly_chart(confusion_heatmap(metrics), width="stretch")
-    report_column, benchmark_column = st.columns(2)
-    with report_column:
-        st.write("Classification report")
-        st.dataframe(pd.DataFrame(metrics.classification_report), hide_index=True, width="stretch")
-    with benchmark_column:
-        st.write("Held-out model benchmark")
-        benchmark = pd.DataFrame([
-            {"Model": name, "MAE (points)": round(bundle.metrics.mean_absolute_error, 3),
-             "Accuracy (%)": round(100 * bundle.metrics.accuracy, 1),
-             "Selected": name == selected_model}
-            for name, bundle in models.items()
-        ])
-        st.dataframe(benchmark, hide_index=True, width="stretch")
-    st.caption("MAE uses unrounded predictions; accuracy and F1 use scores rounded to 3–8. "
-               "All models use the same held-out split.")
+@st.cache_resource(show_spinner="Training the three wine quality models…")
+def get_results():
+    clean, x_train, x_test, y_train, y_test = load_training_data()
+    models = {
+        "Random Forest": train_random_forest(x_train, y_train),
+        "XGBoost": train_xgboost(x_train, y_train),
+        "Support Vector Regression": train_support_vector_regression(x_train, y_train),
+    }
+    return clean, x_train, x_test, y_test, models, evaluate_models(models, x_test, y_test)
 
 
-def render_visualizations(model: ModelBundle) -> None:
-    st.subheader("Model diagnostics")
-    st.plotly_chart(feature_importance(model), width="stretch")
-    st.caption("Feature importance is native to the selected model and is not directly comparable across algorithms.")
-    st.plotly_chart(score_distribution(model.metrics), width="stretch")
-    feature = st.selectbox("Chemical feature", model.feature_names,
-                           index=model.feature_names.index("alcohol"))
-    st.plotly_chart(feature_quality_box(model, feature), width="stretch")
-    st.caption("The feature plot uses all wines in the original dataset.")
-    st.plotly_chart(residual_distribution(model), width="stretch")
-    st.caption("Residuals are actual minus unrounded predicted quality on held-out wines. "
-               "The plot helps inspect bias and spread; it does not establish normality.")
+def render_eda(original):
+    st.subheader("Explore the original data")
+    st.caption(f"{len(original):,} wines · {len(FEATURE_NAMES)} chemical measurements")
+    counts = original["quality"].value_counts().sort_index().rename_axis("quality").reset_index(name="wines")
+    st.plotly_chart(px.bar(counts, x="quality", y="wines", title="Wine quality score distribution"), width="stretch")
+    distributions = original[list(FEATURE_NAMES)].melt(var_name="feature", value_name="value")
+    histogram = px.histogram(distributions, x="value", facet_col="feature", facet_col_wrap=3,
+                             nbins=30, title="Input feature distributions", height=1050)
+    histogram.update_xaxes(matches=None)
+    st.plotly_chart(histogram, width="stretch")
+    correlations = original[[*FEATURE_NAMES, "quality"]].corr()
+    st.plotly_chart(px.imshow(correlations, zmin=-1, zmax=1, color_continuous_scale="RdBu_r",
+                             title="Feature and quality correlations"), width="stretch")
+    top = correlations["quality"].drop("quality").abs().nlargest(3).index
+    box_data = original.melt(id_vars="quality", value_vars=top,
+                             var_name="feature", value_name="value")
+    boxes = px.box(box_data, x="quality", y="value", facet_col="feature",
+                   title="Feature values by quality score")
+    boxes.update_yaxes(matches=None)
+    st.plotly_chart(boxes, width="stretch")
+    sample = original.sample(n=min(800, len(original)), random_state=42)
+    st.plotly_chart(px.scatter(sample, x="alcohol", y="volatile acidity", color="quality",
+                               title="Alcohol and volatile acidity by quality score"), width="stretch")
 
 
-def render_predictions(model: ModelBundle, selected_model: str) -> None:
+def render_comparison(clean, x_train, x_test, comparison):
+    st.subheader("Model comparison")
+    st.caption(f"{len(clean):,} cleaned rows · {len(x_train):,} training · {len(x_test):,} held out")
+    st.dataframe(comparison.style.format({"MAE (points)": "{:.3f}",
+                                          "Exact-score accuracy": "{:.1%}",
+                                          "Within ±1 point": "{:.1%}"}),
+                 hide_index=True, width="stretch")
+    st.caption("All models use the same split. MAE uses unrounded quality estimates; accuracies use scores rounded to 3–8.")
+
+
+def render_prediction(clean, selected, model, comparison):
     st.subheader("Predict a wine's quality score")
-    st.caption("Adjust the measurements, then select Predict quality.")
+    values = {}
     with st.form("prediction_form"):
         columns = st.columns(2)
-        input_features = {}
-        for index, feature in enumerate(model.features):
+        for index, (name, step) in enumerate(zip(FEATURE_NAMES, STEPS)):
+            decimals = max(0, -Decimal(str(step)).as_tuple().exponent)
+            minimum = round(float(clean[name].min()), decimals)
+            maximum = round(float(clean[name].max()), decimals)
+            median = float(clean[name].median())
+            default = round(minimum + round((median - minimum) / step) * step, decimals)
             with columns[index % 2]:
-                input_features[feature.name] = st.slider(
-                    feature.name.title(), min_value=feature.minimum, max_value=feature.maximum,
-                    value=feature.default, step=feature.step, format=feature.display_format,
-                    key=f"feature_{index}",
-                )
+                values[name] = st.slider(name.title(), min_value=minimum, max_value=maximum,
+                                         value=max(minimum, min(maximum, default)), step=step,
+                                         format=f"%.{decimals}f")
         submitted = st.form_submit_button("Predict quality", type="primary")
-
     if submitted:
-        try:
-            st.session_state["prediction_result"] = (
-                selected_model, predict_wine(model, input_features)
-            )
-        except ValueError as exc:
-            st.error(f"Prediction could not be made: {exc}")
-    if "prediction_result" in st.session_state:
-        result_model, result = st.session_state["prediction_result"]
-        if result_model == selected_model:
-            st.success(f"Predicted quality score: {result.score}")
-            estimate, mae, error = st.columns(3)
-            estimate.metric("Estimated quality", f"{result.estimated_quality:.3f} points")
-            mae.metric("Held out mean absolute error", f"{result.mean_absolute_error:.2f} points")
-            error.metric("Held out exact-score error", f"{result.error_rate:.1%}")
-            st.caption("The estimate uses the last submitted values; the score is rounded. "
-                       "Held-out errors describe the selected model's test set and stay the same between wines.")
+        row = pd.DataFrame([values], columns=FEATURE_NAMES)
+        estimate = expm1(float(model.predict(row)[0]))
+        score = int(np.clip(np.rint(estimate), 3, 8))
+        st.session_state["prediction"] = (selected, score, estimate)
+    result = st.session_state.get("prediction")
+    if result and result[0] == selected:
+        st.success(f"Predicted quality score: {result[1]}")
+        st.metric("Estimated quality", f"{result[2]:.3f} points")
+        mae = comparison.loc[comparison["Model"] == selected, "MAE (points)"].iloc[0]
+        st.caption(f"Held-out mean absolute error for {selected}: {mae:.2f} points")
 
 
-try:
-    models = get_models(ARTIFACT_PATH.stat().st_mtime_ns)
-except (FileNotFoundError, ValueError) as exc:
-    st.error(f"The model could not start: {exc}")
-    st.stop()
+def main():
+    st.set_page_config(page_title="Red Wine Quality", page_icon="🍷", layout="wide")
+    st.title("Red Wine Quality")
+    st.caption("Explore the original data, compare trained models, and predict a red wine's quality score.")
+    clean, x_train, x_test, _, models, comparison = get_results()
+    selected = st.selectbox("Model for prediction", tuple(models))
+    eda_tab, comparison_tab, prediction_tab = st.tabs(["Exploration", "Model Comparison", "Prediction"])
+    with eda_tab:
+        render_eda(load_original_data())
+    with comparison_tab:
+        render_comparison(clean, x_train, x_test, comparison)
+    with prediction_tab:
+        render_prediction(clean, selected, models[selected], comparison)
 
-st.title("Red Wine Quality")
-st.caption("Explore model performance and predict a red wine's quality score.")
-selected_model = st.selectbox("Model", MODEL_NAMES)
-model = models[selected_model]
-evaluation_tab, visualizations_tab, predictions_tab = st.tabs(
-    ["Model Evaluation", "Visualizations", "Predictions"]
-)
-with evaluation_tab:
-    render_model_evaluation(model, models, selected_model)
-with visualizations_tab:
-    render_visualizations(model)
-with predictions_tab:
-    render_predictions(model, selected_model)
+
+if __name__ == "__main__":
+    main()
