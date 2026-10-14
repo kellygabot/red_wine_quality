@@ -20,8 +20,8 @@ data/
   original/winequality-red.csv       Source dataset
   processed/winequality-red-clean.csv  Cleaned reference copy
 notebooks/
-  01_eda.ipynb                      Exploratory plots of the original data
-  02_model_training.ipynb           Cleaning, training, and model comparison
+  eda.ipynb                         Exploratory plots of the original data
+  model_training.ipynb              Cleaning, training, and model comparison
 models/
   random_forest.py                  Random Forest training function
   xgboost.py                        XGBoost training function
@@ -38,8 +38,8 @@ uv.lock                             Locked dependency versions
 
 Open the notebooks in order, using the Python environment created by `uv sync` as the kernel. Run them from the repository root or the `notebooks/` directory; both locate the project files from either location.
 
-1. `01_eda.ipynb` examines the original 1,599 wines with quality counts, feature distributions, correlations, box plots, and a scatter plot.
-2. `02_model_training.ipynb` loads the same cleaned data and split used by the app, calls the three functions in `models/`, and reports five-fold cross-validation results on the training rows.
+1. `eda.ipynb` examines the original 1,599 wines with quality counts, feature distributions, correlations, box plots, and a scatter plot.
+2. `model_training.ipynb` loads the same cleaned data and split used by the app, calls the three functions in `models/`, and reports five-fold cross-validation results on the training rows.
 
 ## Data and predictions
 
